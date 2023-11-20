@@ -151,7 +151,6 @@ class PdfFileReader(PdfHandler):
             problems and also causes some correctable problems to be fatal.
             Defaults to ``True``.
         """
-        self.security_handler: Optional[SecurityHandler] = None
         self.strict = strict
         self.resolved_objects: Dict[Tuple[int, int], generic.PdfObject] = {}
         self._header_version = None
@@ -159,10 +158,7 @@ class PdfFileReader(PdfHandler):
         self._historical_resolver_cache: Dict[int, HistoricalResolver] = {}
         self.stream = stream
         self.xrefs, self.trailer = self.read()
-        encrypt_dict = self._get_encryption_params()
-        if encrypt_dict is not None:
-            self.security_handler = SecurityHandler.build(encrypt_dict)
-
+        self.security_handler: Optional[SecurityHandler] = SecurityHandler.build(self.encrypt_dict)
         self._embedded_signatures = None
 
     def _xmp_meta_view(self) -> Optional[DocumentMetadata]:
@@ -176,6 +172,17 @@ class PdfFileReader(PdfHandler):
         if isinstance(meta_obj, xmp_xml.MetadataStream):
             return xmp_xml.meta_from_xmp(meta_obj.xmp)
         return None
+
+    @property
+    def encrypt_dict(self) -> Optional[generic.DictionaryObject]:
+        try:
+            encrypt_ref = self.trailer.raw_get('/Encrypt')
+        except KeyError:
+            return None
+        if isinstance(encrypt_ref, generic.IndirectObject):
+            return self.get_object(encrypt_ref.reference, never_decrypt=True)
+        else:
+            return encrypt_ref
 
     @property
     def document_meta_view(self) -> DocumentMetadata:

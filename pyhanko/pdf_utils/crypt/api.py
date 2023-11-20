@@ -163,7 +163,7 @@ class SecurityHandler:
         return cls
 
     @staticmethod
-    def build(encrypt_dict: generic.DictionaryObject) -> 'SecurityHandler':
+    def build(encrypt_dict: Optional[generic.DictionaryObject]) -> Optional['SecurityHandler']:
         """
         Instantiate an appropriate :class:`.SecurityHandler` from a PDF
         document's encryption dictionary.
@@ -183,35 +183,37 @@ class SecurityHandler:
             A PDF encryption dictionary.
         :return:
         """
-        handler_name = encrypt_dict.get('/Filter', '/Standard')
-        try:
-            cls = SecurityHandler.__registered_subclasses[handler_name]
-        except KeyError:
-            # no handler with that exact name, but if the encryption dictionary
-            # specifies a generic /SubFilter, we can still try to look for an
-            # alternative.
+        if encrypt_dict:
+            handler_name = encrypt_dict.get('/Filter', '/Standard')
             try:
-                subfilter = encrypt_dict['/SubFilter']
+                cls = SecurityHandler.__registered_subclasses[handler_name]
             except KeyError:
-                raise misc.PdfReadError(
-                    f"There is no security handler named {handler_name}, "
-                    f"and the encryption dictionary does not contain a generic "
-                    f"/SubFilter entry."
-                )
-            try:
-                cls = next(
-                    h
-                    for h in SecurityHandler.__registered_subclasses.values()
-                    if subfilter in h.support_generic_subfilters()
-                )
-            except StopIteration:
-                raise misc.PdfReadError(
-                    f"There is no security handler named {handler_name}, and "
-                    f"none of the available handlers support the declared "
-                    f"/SubFilter {subfilter}."
-                )
+                # no handler with that exact name, but if the encryption dictionary
+                # specifies a generic /SubFilter, we can still try to look for an
+                # alternative.
+                try:
+                    subfilter = encrypt_dict['/SubFilter']
+                except KeyError:
+                    raise misc.PdfReadError(
+                        f"There is no security handler named {handler_name}, "
+                        f"and the encryption dictionary does not contain a generic "
+                        f"/SubFilter entry."
+                    )
+                try:
+                    cls = next(
+                        h
+                        for h in SecurityHandler.__registered_subclasses.values()
+                        if subfilter in h.support_generic_subfilters()
+                    )
+                except StopIteration:
+                    raise misc.PdfReadError(
+                        f"There is no security handler named {handler_name}, and "
+                        f"none of the available handlers support the declared "
+                        f"/SubFilter {subfilter}."
+                    )
 
-        return cls.instantiate_from_pdf_object(encrypt_dict)
+            return cls.instantiate_from_pdf_object(encrypt_dict)
+        return None
 
     @classmethod
     def get_name(cls) -> str:
